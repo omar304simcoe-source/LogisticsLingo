@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,9 +28,6 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
-        },
       })
       if (error) throw error
       router.push("/dashboard")
@@ -48,9 +44,9 @@ export default function LoginPage() {
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Truck className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">LogisticsLingo</h1>
+            <h1 className="text-2xl font-bold text-slate-900">LogisticsLingo</h1>
           </div>
-          <Card className="border-primary">
+          <Card className="border-primary shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl">Login</CardTitle>
               <CardDescription className="text-muted-foreground">
@@ -71,8 +67,18 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
+                  
+                  {/* --- PASSWORD SECTION START --- */}
                   <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <Link
+                        href="/auth/forgot-password"
+                        className="text-sm font-medium text-primary hover:underline underline-offset-4"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
                     <Input
                       id="password"
                       type="password"
@@ -81,10 +87,12 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                   </div>
+                  {/* --- PASSWORD SECTION END --- */}
+
                   {error && <p className="text-sm text-red-500">{error}</p>}
                   <Button
                     type="submit"
-                    className="w-full bg-primary text-white hover:bg-primary/80"
+                    className="w-full bg-primary text-white hover:bg-primary/90 transition-colors"
                     disabled={isLoading}
                   >
                     {isLoading ? "Logging in..." : "Login"}
@@ -92,7 +100,7 @@ export default function LoginPage() {
                 </div>
                 <div className="mt-4 text-center text-sm">
                   Don&apos;t have an account?{" "}
-                  <Link href="/auth/sign-up" className="underline underline-offset-4 font-semibold">
+                  <Link href="/auth/sign-up" className="underline underline-offset-4 font-semibold text-primary">
                     Sign up
                   </Link>
                 </div>
