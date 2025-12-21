@@ -49,7 +49,7 @@ Run the SQL scripts in the `scripts/` directory to set up your database schema:
 
 You can run these scripts in your Supabase SQL editor.
 
-### 4. Configure Stripe Webhook
+### 5. Configure Stripe Webhook
 
 1. Go to your Stripe Dashboard → Developers → Webhooks
 2. Add a new endpoint pointing to: `http://localhost:3000/api/stripe-webhook` (or your production URL)
@@ -64,7 +64,7 @@ You can run these scripts in your Supabase SQL editor.
 stripe listen --forward-to localhost:3000/api/stripe-webhook
 ```
 
-### 5. Run the Development Server
+### 6. Run the Development Server
 
 ```bash
 pnpm dev
@@ -110,6 +110,22 @@ The application will be available at [http://localhost:3000](http://localhost:30
 ### OpenAI API Issues
 - Verify your API key is correct and has sufficient credits
 - Check that the `OPENAI_API_KEY` environment variable is set
+
+### Authentication Issues
+- **"No authorization code provided" error**: 
+  - Ensure the redirect URL `https://logistics-lingo.vercel.app/auth/callback` is added to your Supabase project's allowed redirect URLs
+  - Go to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+  - Add both production and development URLs
+  
+- **"Authentication failed" or "Invalid code" errors**:
+  - Check that the email confirmation link hasn't expired (they expire after 24 hours)
+  - Verify the redirect URL in your Supabase settings matches exactly what's in your code
+  - Check Vercel logs for detailed error messages
+  
+- **Email confirmation not working**:
+  - Verify `emailRedirectTo` in sign-up matches your Supabase redirect URL settings
+  - Check spam folder for confirmation emails
+  - Ensure email templates are configured in Supabase Dashboard
 
 ## License
 // trigger build
