@@ -4,36 +4,25 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. Bypass auth, static files, and landing page
-  if (
-    pathname === '/dashboard/reset-password' || 
-    pathname.startsWith('/auth') || 
-    pathname.startsWith('/_next') ||
-    pathname === '/'
-  ) {
+  // BYPASS EVERYTHING EXCEPT THE DASHBOARD
+  // This ensures your login page is always reachable.
+  if (!pathname.startsWith('/dashboard')) {
     return NextResponse.next()
   }
 
-  // Initialize response
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
+          response = NextResponse.next({ request: { headers: request.headers } })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -42,14 +31,9 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 2. Protect Dashboard
-  if (pathname.startsWith('/dashboard')) {
-    // getUser is more secure than getSession for middleware
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.redirect(new URL('/auth/login', request.url))
-    }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   return response
