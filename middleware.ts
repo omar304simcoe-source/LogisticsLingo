@@ -1,30 +1,41 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. HARD BYPASS - If we are on the reset page or auth, GET OUT IMMEDIATELY
-  // This prevents the "Unreachable" error by not running any Supabase logic here.
+  // 1. Bypass auth, reset, and static files
   if (
     pathname === '/dashboard/reset-password' || 
     pathname.startsWith('/auth') || 
-    pathname.startsWith('/_next')
+    pathname.startsWith('/_next') ||
+    pathname === '/' // Allow landing page
   ) {
     return NextResponse.next()
   }
 
-  let response = NextResponse.next({ request })
+  // Create an initial response
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return request.cookies.getAll() },
+        getAll() {
+          return request.cookies.getAll()
+        },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -33,10 +44,12 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 2. Protect the rest of the dashboard
+  // 2. Protect the dashboard
   if (pathname.startsWith('/dashboard')) {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    // Use getUser() instead of getSession() for better security on Vercel
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
       return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
