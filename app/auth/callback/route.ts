@@ -1,43 +1,45 @@
-// Replace your current GET function with this logic
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  
-  // FORCE the redirect to dashboard instead of reading from searchParams
-  // if searchParams.get('next') is accidentally returning '/login'
-  const next = '/dashboard' 
+  try {
+    const { searchParams, origin } = new URL(request.url)
+    const code = searchParams.get('code')
+    // Force redirect to dashboard to break any login loops
+    const next = '/dashboard'
 
-  if (code) {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch (error) {
-              // This can be ignored if middleware is handling session refresh
-            }
+    if (code) {
+      const cookieStore = await cookies() // CRITICAL: Must await in Next 15/16
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() { return cookieStore.getAll() },
+            setAll(cookiesToSet) {
+              try {
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  cookieStore.set(name, value, options)
+                )
+              } catch {
+                // Ignore errors if called from Server Component
+              }
+            },
           },
-        },
-      }
-    )
+        }
+      )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    
-    if (!error) {
-      // Use origin to ensure we stay on the same domain
-      return NextResponse.redirect(`${origin}${next}`)
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (!error) {
+        return NextResponse.redirect(`${origin}${next}`)
+      }
+      console.error('Exchange error:', error)
     }
-    
-    console.error('Auth error:', error)
+  } catch (err) {
+    console.error('Callback crash:', err)
   }
 
-  // Return to login ONLY if the exchange actually failed
-  return NextResponse.redirect(`${origin}/login?error=auth-code-error`)
+  // If we reach here, redirect to a safe error page
+  return NextResponse.redirect(`${new URL(request.url).origin}/login?error=auth-code-error`)
 }
