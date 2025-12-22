@@ -13,6 +13,8 @@ import { useState } from "react"
 import { Truck } from "lucide-react"
 
 export default function SignUpPage() {
+  // 1. ADDED: Full Name state
+  const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [repeatPassword, setRepeatPassword] = useState("")
@@ -36,12 +38,14 @@ export default function SignUpPage() {
     try {
       const redirectUrl = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/callback`
 
+      // 2. UPDATED: Passing full_name into metadata
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
+            full_name: fullName, // Captured name stored here
             email: email,
           },
         },
@@ -73,7 +77,7 @@ export default function SignUpPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-900">
-                  <p className="font-semibold mb-2">Follow these steps:</p>
+                  <p className="font-semibold mb-2">Follow these steps, {fullName.split(' ')[0]}:</p>
                   <ol className="list-decimal list-inside space-y-1">
                     <li>Check your email inbox and spam folder</li>
                     <li>Click the confirmation link in the email</li>
@@ -110,6 +114,18 @@ export default function SignUpPage() {
             <CardContent>
               <form onSubmit={handleSignUp}>
                 <div className="flex flex-col gap-6">
+                  {/* 3. ADDED: Full Name Input Field */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="John Doe"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </div>
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input

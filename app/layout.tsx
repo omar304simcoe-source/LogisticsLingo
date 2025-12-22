@@ -1,47 +1,60 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import "./globals.css"
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { Truck, UserCircle } from "lucide-react"
+import Link from "next/link"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
-
-export const metadata: Metadata = {
-  title: "LogisticsLingo - Professional Logistics Messages Generated Instantly",
-  description:
-    "AI-powered message generation for freight brokers, dispatchers, and carriers. Generate professional logistics messages in seconds.",
-  generator: "v0.app",
-  icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
-  },
-}
-
-export default function RootLayout({
+export default async function DashboardLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
+  const supabase = await createClient()
+
+  // Fetch the user session
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // If no user is found, send them back to login
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  // Get the name we saved in Step 1
+  const fullName = user.user_metadata?.full_name || "User"
+  const firstName = fullName.split(" ")[0]
+
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      {/* Dashboard Header */}
+      <header className="sticky top-0 z-40 border-b bg-white">
+        <div className="flex h-16 items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <Truck className="h-6 w-6 text-primary" />
+            <span className="font-bold text-slate-900 hidden sm:inline-block">
+              LogisticsLingo
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-medium text-slate-900">
+                Welcome, {firstName}
+              </p>
+              <p className="text-xs text-slate-500">{user.email}</p>
+            </div>
+            
+            <Link href="/dashboard/profile">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-colors">
+                <UserCircle className="h-6 w-6 text-slate-600" />
+              </div>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1">
         {children}
-        <Analytics />
-      </body>
-    </html>
+      </main>
+    </div>
   )
 }
