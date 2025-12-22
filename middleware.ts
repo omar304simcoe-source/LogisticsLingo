@@ -1,12 +1,16 @@
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // 1. Robust Bypass Logic
-  // Ensure the callback and the reset page are totally ignored by the auth protector
+  // 1. IMMEDIATE BYPASS - Don't even initialize Supabase for these routes
   if (
     pathname.startsWith('/auth') || 
-    pathname.startsWith('/dashboard/reset-password') ||
-    pathname === '/login' // Allow access to login page
+    pathname.startsWith('/_next') ||
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/'
   ) {
     return NextResponse.next()
   }
@@ -30,16 +34,23 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 2. IMPORTANT: Get user session
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // 3. Protection Logic
-  // If no user and trying to access dashboard, redirect to login
-  if (!user && pathname.startsWith('/dashboard')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  // 2. Only check for user if we are trying to access the dashboard
+  if (pathname.startsWith('/dashboard')) {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
+}
+
+// 3. Matcher to exclude static files and auth routes
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
