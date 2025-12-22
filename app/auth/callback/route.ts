@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    const cookieStore = await cookies() // Essential for Next 15/16
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -21,23 +21,25 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               )
             } catch (error) {
-              // Middleware will handle session refresh if this fails
+              // Can be ignored if handled by middleware
             }
           },
         },
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    // Attempt the exchange
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error) {
-      // Use requestUrl.origin to ensure we redirect to the correct domain
+    if (!error && data?.session) {
+      // SUCCESS: The session is active, go to dashboard
       return NextResponse.redirect(`${requestUrl.origin}${next}`)
     }
-    
-    console.error('Exchange error:', error.message)
+
+    // If there's an error, log it to the Vercel Function Logs
+    console.error('Auth Exchange Failed:', error?.message)
   }
 
-  // If we reach here, something went wrong
+  // FAIL: No code or exchange failed
   return NextResponse.redirect(`${requestUrl.origin}/login?error=auth-code-error`)
 }
