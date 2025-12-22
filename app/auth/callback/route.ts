@@ -5,10 +5,11 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  // 'next' is where the user goes after login (default to dashboard)
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    const cookieStore = await cookies()
+    const cookieStore = await cookies() // Must await in Next.js 15/16
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -16,20 +17,28 @@ export async function GET(request: Request) {
         cookies: {
           getAll() { return cookieStore.getAll() },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // The `setAll` method was called from a Server Component.
+              // This can be ignored if you have middleware refreshing
+              // user sessions.
+            }
           },
         },
       }
     )
     
+    // This is the critical line that swaps the URL code for a real login session
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
-  // If something goes wrong, return to login with error
+  // If we reach here, something failed. Redirect to login with the error.
   return NextResponse.redirect(`${origin}/login?error=auth-code-error`)
 }
