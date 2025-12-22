@@ -3,16 +3,18 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  let response = NextResponse.next({ request })
-
-  // 1. ABSOLUTE BYPASS: Added /dashboard/reset-password to the bypass
+  
+  // 1. HARD BYPASS - If we are on the reset page or auth, GET OUT IMMEDIATELY
+  // This prevents the "Unreachable" error by not running any Supabase logic here.
   if (
+    pathname === '/dashboard/reset-password' || 
     pathname.startsWith('/auth') || 
-    pathname.startsWith('/_next') || 
-    pathname === '/dashboard/reset-password' // ALLOW THIS PAGE
+    pathname.startsWith('/_next')
   ) {
-    return response
+    return NextResponse.next()
   }
+
+  let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +33,7 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 2. Protect Dashboard (except reset-password which we bypassed above)
+  // 2. Protect the rest of the dashboard
   if (pathname.startsWith('/dashboard')) {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
