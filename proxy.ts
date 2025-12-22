@@ -4,13 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // 1. IMMEDIATE BYPASS - Don't even initialize Supabase for these routes
+  // 1. Bypass logic for static assets and public routes
   if (
-    pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') ||
+    pathname.startsWith('/auth') ||
     pathname === '/login' ||
     pathname === '/signup' ||
-    pathname === '/'
+    pathname === '/' ||
+    pathname.includes('.') // Bypasses images/favicons
   ) {
     return NextResponse.next()
   }
@@ -24,6 +25,7 @@ export async function middleware(request: NextRequest) {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
+          // This ensures cookies are synced between the request and response
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -34,11 +36,12 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 2. Only check for user if we are trying to access the dashboard
+  // 2. Protect Dashboard Routes
   if (pathname.startsWith('/dashboard')) {
-    const { data: { user } } = await supabase.auth.getUser()
+    // We use getSession() here as it is often more lightweight in middleware
+    const { data: { session } } = await supabase.auth.getSession()
     
-    if (!user) {
+    if (!session) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
@@ -48,9 +51,15 @@ export async function middleware(request: NextRequest) {
   return supabaseResponse
 }
 
-// 3. Matcher to exclude static files and auth routes
+// 3. Matcher configuration
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
