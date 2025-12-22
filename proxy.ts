@@ -1,15 +1,22 @@
+// proxy.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  
-  // BYPASS EVERYTHING EXCEPT THE DASHBOARD
-  // This ensures your login page is always reachable.
-  if (!pathname.startsWith('/dashboard')) {
+
+  // 1. THE EXIT DOOR: If we are already going to a login/auth page, STOP here.
+  // This prevents the infinite loop.
+  if (
+    pathname.startsWith('/auth') || 
+    pathname.startsWith('/_next') || 
+    pathname === '/favicon.ico' ||
+    pathname === '/'
+  ) {
     return NextResponse.next()
   }
 
+  // 2. SETUP FOR EVERYTHING ELSE
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -31,9 +38,13 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+  // 3. ONLY REDIRECT IF TRYING TO ACCESS PROTECTED AREAS
+  if (pathname.startsWith('/dashboard')) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      // Send to login if not authenticated
+      return NextResponse.redirect(new URL('/auth/login', request.url))
+    }
   }
 
   return response
