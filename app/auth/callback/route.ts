@@ -3,9 +3,9 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  const next = requestUrl.searchParams.get('next') ?? '/dashboard'
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
     const cookieStore = await cookies()
@@ -20,26 +20,24 @@ export async function GET(request: Request) {
               cookiesToSet.forEach(({ name, value, options }) =>
                 cookieStore.set(name, value, options)
               )
-            } catch (error) {
-              // Can be ignored if handled by middleware
+            } catch {
+              // This can be ignored if middleware handles it
             }
           },
         },
       }
     )
 
-    // Attempt the exchange
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error && data?.session) {
-      // SUCCESS: The session is active, go to dashboard
-      return NextResponse.redirect(`${requestUrl.origin}${next}`)
+    if (!error) {
+      // SUCCESS: No error, send them to dashboard
+      return NextResponse.redirect(`${origin}${next}`)
     }
-
-    // If there's an error, log it to the Vercel Function Logs
-    console.error('Auth Exchange Failed:', error?.message)
+    
+    console.error('Handshake Error:', error.message)
   }
 
-  // FAIL: No code or exchange failed
-  return NextResponse.redirect(`${requestUrl.origin}/login?error=auth-code-error`)
+  // FAIL: Return to login with the error code
+  return NextResponse.redirect(`${origin}/login?error=auth-code-error`)
 }

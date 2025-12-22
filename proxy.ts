@@ -1,21 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// RENAME THIS FROM middleware TO proxy
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  let response = NextResponse.next({ request })
 
+  // 1. ABSOLUTE BYPASS: Added /dashboard/reset-password to the bypass
   if (
     pathname.startsWith('/auth') || 
-    pathname.startsWith('/_next') ||
-    pathname === '/login' ||
-    pathname === '/signup' ||
-    pathname === '/'
+    pathname.startsWith('/_next') || 
+    pathname === '/dashboard/reset-password' // ALLOW THIS PAGE
   ) {
-    return NextResponse.next()
+    return response
   }
-
-  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,30 +22,26 @@ export async function proxy(request: NextRequest) {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          response = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            response.cookies.set(name, value, options)
           )
         },
       },
     }
   )
 
+  // 2. Protect Dashboard (except reset-password which we bypassed above)
   if (pathname.startsWith('/dashboard')) {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
 
-  return supabaseResponse
+  return response
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
