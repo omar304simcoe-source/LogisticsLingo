@@ -4,9 +4,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-
-  // 1. THE EXIT DOOR: If we are already going to a login/auth page, STOP here.
-  // This prevents the infinite loop.
+  
+  // 1. THE BYPASS: High-priority exit for public routes
+  // This is what stops the Firefox "Redirect Loop"
   if (
     pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') || 
@@ -16,7 +16,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 2. SETUP FOR EVERYTHING ELSE
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -38,11 +37,10 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 3. ONLY REDIRECT IF TRYING TO ACCESS PROTECTED AREAS
+  // 2. PROTECT DASHBOARD ONLY
   if (pathname.startsWith('/dashboard')) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      // Send to login if not authenticated
       return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
