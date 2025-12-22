@@ -1,15 +1,14 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-
+// Replace your current GET function with this logic
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  // 'next' is where the user goes after login (default to dashboard)
-  const next = searchParams.get('next') ?? '/dashboard'
+  
+  // FORCE the redirect to dashboard instead of reading from searchParams
+  // if searchParams.get('next') is accidentally returning '/login'
+  const next = '/dashboard' 
 
   if (code) {
-    const cookieStore = await cookies() // Must await in Next.js 15/16
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -21,24 +20,24 @@ export async function GET(request: Request) {
               cookiesToSet.forEach(({ name, value, options }) =>
                 cookieStore.set(name, value, options)
               )
-            } catch {
-              // The `setAll` method was called from a Server Component.
-              // This can be ignored if you have middleware refreshing
-              // user sessions.
+            } catch (error) {
+              // This can be ignored if middleware is handling session refresh
             }
           },
         },
       }
     )
-    
-    // This is the critical line that swaps the URL code for a real login session
+
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
+      // Use origin to ensure we stay on the same domain
       return NextResponse.redirect(`${origin}${next}`)
     }
+    
+    console.error('Auth error:', error)
   }
 
-  // If we reach here, something failed. Redirect to login with the error.
+  // Return to login ONLY if the exchange actually failed
   return NextResponse.redirect(`${origin}/login?error=auth-code-error`)
 }
