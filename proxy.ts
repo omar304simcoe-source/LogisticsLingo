@@ -4,24 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. PUBLIC BYPASS (This stops the redirect loop)
-  // If the user is trying to reach the login page, let them through immediately!
+  // 1. THE BYPASS: If the user is going to login, don't run auth checks!
   if (
     pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') || 
-    pathname === '/favicon.ico' ||
-    pathname === '/'
+    pathname.startsWith('/api') ||
+    pathname === '/' ||
+    pathname === '/favicon.ico'
   ) {
-    return NextResponse.next()
-  }
-
-  // 2. SAFE VARIABLE LOADING
-  // Using "!" on variables that might be missing crashes the server
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Supabase keys missing - skipping proxy check")
     return NextResponse.next()
   }
 
@@ -29,22 +19,28 @@ export async function proxy(request: NextRequest) {
     request: { headers: request.headers },
   })
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() { return request.cookies.getAll() },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        response = NextResponse.next({
-          request: { headers: request.headers },
-        })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        )
+  // 2. INITIALIZE SUPABASE
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
       },
-    },
-  })
+    }
+  )
 
-  // 3. ONLY PROTECT THE DASHBOARD
+  // 3. PROTECT DASHBOARD ONLY
+  // This ensures only /dashboard routes trigger a redirect to login
   if (pathname.startsWith('/dashboard')) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -56,5 +52,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Matches everything except static files and api
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
