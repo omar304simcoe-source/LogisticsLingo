@@ -4,9 +4,7 @@ import { useState } from "react"
 import { LoadDetailsForm, type LoadDetails } from "./load-details-form"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { Truck, LogOut, Copy, CheckCircle2, Save } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { Copy, CheckCircle2, Save } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SavedTemplates } from "./saved-templates"
 import { MessageHistory } from "./message-history"
@@ -24,13 +22,6 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [templateName, setTemplateName] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login")
-  }
 
   const handleGenerateMessage = async (details: LoadDetails) => {
     setCurrentLoadDetails(details)
@@ -94,140 +85,128 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
   const canSaveTemplates = profile?.subscription_tier === "pro" || profile?.subscription_tier === "agency"
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-primary">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Truck className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">LogisticsLingo</h1>
+    <div className="bg-transparent">
+      {/* Plan Status Indicator */}
+      <div className="mb-6 flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
+        <div className="text-sm">
+          <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Current Plan:</span>{" "}
+          <span className="ml-2 font-medium">
+            {profile?.subscription_tier === "free" && "Free (3 messages remaining)"}
+            {profile?.subscription_tier === "pro" && "Pro Plan"}
+            {profile?.subscription_tier === "agency" && "Agency Plan"}
+          </span>
+        </div>
+        {profile?.subscription_tier === "free" && (
+          <Button size="sm" variant="default" className="bg-blue-600 hover:bg-blue-700" asChild>
+            <a href="/pricing">Upgrade Account</a>
+          </Button>
+        )}
+      </div>
+
+      <Tabs defaultValue="generator" className="w-full">
+        <TabsList className="mb-6 grid w-full grid-cols-3 h-12">
+          <TabsTrigger value="generator" className="text-sm font-medium">
+            Message Generator
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="text-sm font-medium">
+            Templates
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-sm font-medium">
+            History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generator">
+          <div className="grid lg:grid-cols-2 gap-8">
+            <div>
+              <Card className="border-none shadow-md">
+                <CardHeader>
+                  <CardTitle className="text-xl">Load Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <LoadDetailsForm onSubmit={handleGenerateMessage} isLoading={isGenerating} />
+                </CardContent>
+              </Card>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="text-sm">
-                <span className="font-semibold">Plan:</span>{" "}
-                {profile?.subscription_tier === "free" && "Free (3 messages)"}
-                {profile?.subscription_tier === "pro" && "Pro"}
-                {profile?.subscription_tier === "agency" && "Agency"}
-              </div>
-              {profile?.subscription_tier === "free" && (
-                <Button size="sm" asChild>
-                  <a href="/pricing">Upgrade</a>
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleLogout} size="sm">
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
+
+            <div>
+              <Card className="h-full border-none shadow-md">
+                <CardHeader>
+                  <CardTitle className="text-xl">Generated Message</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {generatedMessage ? (
+                    <div className="space-y-4">
+                      <div className="bg-slate-50 p-4 rounded-md border min-h-[400px] overflow-auto whitespace-pre-wrap font-mono text-sm text-slate-800">
+                        {generatedMessage}
+                      </div>
+                      <div className="flex gap-3">
+                        <Button onClick={handleCopy} className="flex-1">
+                          {copied ? (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy to Clipboard
+                            </>
+                          )}
+                        </Button>
+                        {canSaveTemplates && (
+                          <Button
+                            onClick={() => setShowSaveDialog(true)}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Template
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center min-h-[400px] text-muted-foreground border-2 border-dashed rounded-md">
+                      Your generated message will appear here
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
-        </div>
-      </header>
+        </TabsContent>
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <Tabs defaultValue="generator" className="w-full">
-          <TabsList className="mb-6 grid w-full grid-cols-3">
-            <TabsTrigger value="generator" className="text-xs sm:text-sm">
-              Message Generator
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs sm:text-sm">
-              Templates
-            </TabsTrigger>
-            <TabsTrigger value="history" className="text-xs sm:text-sm">
-              History
-            </TabsTrigger>
-          </TabsList>
+        <TabsContent value="templates">
+          <SavedTemplates canSave={canSaveTemplates} />
+        </TabsContent>
 
-          <TabsContent value="generator">
-            <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
-              <div>
-                <Card>
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Load Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    <LoadDetailsForm onSubmit={handleGenerateMessage} isLoading={isGenerating} />
-                  </CardContent>
-                </Card>
-              </div>
+        <TabsContent value="history">
+          <MessageHistory />
+        </TabsContent>
+      </Tabs>
 
-              <div>
-                <Card className="h-full">
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Generated Message</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    {generatedMessage ? (
-                      <div className="space-y-4">
-                        <div className="bg-secondary p-4 rounded border min-h-[300px] sm:min-h-[400px] overflow-auto whitespace-pre-wrap font-mono text-sm">
-                          {generatedMessage}
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <Button onClick={handleCopy} className="flex-1 text-sm sm:text-base">
-                            {copied ? (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-4 w-4 mr-2" />
-                                Copy to Clipboard
-                              </>
-                            )}
-                          </Button>
-                          {canSaveTemplates && (
-                            <Button
-                              onClick={() => setShowSaveDialog(true)}
-                              variant="outline"
-                              className="flex-1 text-sm sm:text-base"
-                            >
-                              <Save className="h-4 w-4 mr-2" />
-                              Save Template
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center min-h-[300px] sm:min-h-[400px] text-muted-foreground">
-                        Your generated message will appear here
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="templates">
-            <SavedTemplates canSave={canSaveTemplates} />
-          </TabsContent>
-
-          <TabsContent value="history">
-            <MessageHistory />
-          </TabsContent>
-        </Tabs>
-      </main>
-
+      {/* Save Template Dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="max-w-md w-full">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+          <Card className="max-w-md w-full shadow-2xl">
             <CardHeader>
-              <CardTitle className="text-lg sm:text-xl">Save Template</CardTitle>
+              <CardTitle className="text-xl">Save as Template</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-semibold mb-2 block">Template Name</label>
+                <label className="text-sm font-semibold mb-2 block text-slate-700">Template Name</label>
                 <input
                   type="text"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="e.g., Standard Check-in"
-                  className="w-full px-3 py-2 border border-primary rounded"
+                  placeholder="e.g., Afternoon Status Update"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition"
                 />
               </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleSaveTemplate} disabled={isSaving} className="flex-1">
-                  {isSaving ? "Saving..." : "Save"}
+              <div className="flex gap-3">
+                <Button onClick={handleSaveTemplate} disabled={isSaving} className="flex-1 bg-blue-600">
+                  {isSaving ? "Saving..." : "Save Template"}
                 </Button>
                 <Button onClick={() => setShowSaveDialog(false)} variant="outline" className="flex-1">
                   Cancel
