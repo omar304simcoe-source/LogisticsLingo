@@ -8,7 +8,7 @@ export const runtime = "nodejs"
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
 
-  // Read raw body for webhook verification
+  // Stripe requires the raw body for webhook verification
   const body = await req.text()
   const sig = req.headers.get("stripe-signature")
 
@@ -35,17 +35,20 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
 
         const userId = session.metadata?.user_id
-        const tier = session.metadata?.product_tier
+        const tier = session.metadata?.tier // ✅ FIXED
         const subscriptionId = session.subscription as string
 
-        if (!userId || !tier || !subscriptionId) break
+        if (!userId || !tier || !subscriptionId) {
+          console.warn("Missing metadata on checkout.session.completed")
+          break
+        }
 
         await supabase
           .from("profiles")
           .update({
             subscription_tier: tier,
-            stripe_subscription_id: subscriptionId,
             subscription_status: "active",
+            stripe_subscription_id: subscriptionId,
           })
           .eq("id", userId)
 
