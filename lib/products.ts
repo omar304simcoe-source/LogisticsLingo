@@ -1,6 +1,6 @@
 export interface Product {
   id: string
-  stripeProductId: string
+  stripePriceId: string // Changed from stripeProductId
   name: string
   description: string
   priceInCents: number
@@ -11,16 +11,18 @@ export interface Product {
 export const PRODUCTS: Product[] = [
   {
     id: "pro-plan",
-    stripeProductId: "prod_Tee2pVbFHLPnHP",
+    // ⚠️ Get this from the "Pricing" section of the product, NOT the top header
+    stripePriceId: "price_1ShKkoGjRgaLSEnZPHydeESf", 
     name: "Pro",
     description: "Perfect for individual brokers and carriers",
-    priceInCents: 499,
+    priceInCents: 300, // Matching your image's $3.00
     tier: "pro",
     features: ["Unlimited messages", "Save templates", "Multi-driver profiles", "Priority support"],
   },
   {
     id: "agency-plan",
-    stripeProductId: "prod_Tee376KoG1S8nP",
+    // ⚠️ Get this from the "Pricing" section of the product, NOT the top header
+    stripePriceId: "price_1ShKlWGjRgaLSEnZJQjHFjF3", 
     name: "Agency",
     description: "For small dispatch companies",
     priceInCents: 799,
