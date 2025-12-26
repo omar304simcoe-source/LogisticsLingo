@@ -14,8 +14,11 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.log("Auth error or no user:", authError)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    console.log("Authenticated user ID:", user.id)
 
     // 2️⃣ Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -25,8 +28,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
+      console.error("Profile fetch error:", profileError)
       return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     }
+
+    console.log("Profile found:", profile)
 
     // 3️⃣ Handle rate limits for free tier
     if (profile.subscription_tier === "free") {
