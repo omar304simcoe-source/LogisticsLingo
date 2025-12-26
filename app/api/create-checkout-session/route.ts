@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { stripe } from "@/lib/stripe"
 import { PRODUCTS } from "@/lib/products"
@@ -13,16 +13,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { productId } = await request.json()
-    if (!productId) {
-      return NextResponse.json({ error: "Product ID required" }, { status: 400 })
-    }
-
+    
+    // Find product in your local lib/products.ts
     const product = PRODUCTS.find(p => p.id === productId)
-    if (!product) {
-      return NextResponse.json({ error: "Invalid product" }, { status: 404 })
+    if (!product || !product.stripePriceId) {
+      return NextResponse.json({ error: "Invalid product or missing Price ID" }, { status: 404 })
     }
 
-    // Fetch profile
+    // Fetch profile to get existing customer ID
     const { data: profile } = await supabase
       .from("profiles")
       .select("stripe_customer_id")
@@ -31,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     let customerId = profile?.stripe_customer_id
 
+    // If no customer ID exists, create one in Stripe
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -39,36 +38,36 @@ export async function POST(request: NextRequest) {
 
       customerId = customer.id
 
+      // Save the new Customer ID to Supabase immediately
       await supabase
         .from("profiles")
         .update({ stripe_customer_id: customerId })
         .eq("id", user.id)
     }
 
-    const origin =
-      request.headers.get("origin") ??
-      process.env.NEXT_PUBLIC_APP_URL!
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin")
 
+    // CREATE HOSTED CHECKOUT SESSION
+    // Using Hosted mode (redirect) instead of Embedded for better reliability
     const session = await stripe.checkout.sessions.create({
-      ui_mode: "embedded",
       mode: "subscription",
       customer: customerId,
       line_items: [
         {
-          price: product.priceId,
+          price: product.stripePriceId, // ✅ Must be the 'price_...' ID
           quantity: 1,
         },
       ],
-      return_url: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/dashboard?success=true`,
+      cancel_url: `${origin}/pricing`,
       metadata: {
         user_id: user.id,
-        tier: product.tier,
+        product_tier: product.tier, // ✅ Changed from 'tier' to 'product_tier' to match your Webhook
       },
     })
 
-    return NextResponse.json({
-      clientSecret: session.client_secret,
-    })
+    // Return the URL for the client to redirect to
+    return NextResponse.json({ url: session.url })
   } catch (error: any) {
     console.error("Stripe checkout error:", error)
     return NextResponse.json(
