@@ -7,122 +7,73 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!user.email) {
-      return NextResponse.json({ error: "User email is required" }, { status: 400 })
-    }
-
     const { productId } = await request.json()
-
     if (!productId) {
-      return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
+      return NextResponse.json({ error: "Product ID required" }, { status: 400 })
     }
 
-    const product = PRODUCTS.find((p) => p.id === productId)
+    const product = PRODUCTS.find(p => p.id === productId)
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+      return NextResponse.json({ error: "Invalid product" }, { status: 404 })
     }
 
-    // Get or create Stripe customer
-    const { data: profile, error: profileError } = await supabase
+    // Fetch profile
+    const { data: profile } = await supabase
       .from("profiles")
-      .select("*")
+      .select("stripe_customer_id")
       .eq("id", user.id)
       .single()
-
-    if (profileError && profileError.code !== "PGRST116") {
-      // PGRST116 is "not found" which is okay, we'll create the customer
-      console.error("Error fetching profile:", profileError)
-    }
 
     let customerId = profile?.stripe_customer_id
 
     if (!customerId) {
-      try {
-        const customer = await stripe.customers.create({
-          email: user.email,
-          metadata: {
-            supabase_user_id: user.id,
-          },
-        })
-        customerId = customer.id
-
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ stripe_customer_id: customerId })
-          .eq("id", user.id)
-
-        if (updateError) {
-          console.error("Error updating profile with customer ID:", updateError)
-          // Continue anyway, we have the customer ID
-        }
-      } catch (stripeError) {
-        console.error("Error creating Stripe customer:", stripeError)
-        throw new Error(`Failed to create Stripe customer: ${stripeError instanceof Error ? stripeError.message : "Unknown error"}`)
-      }
-    }
-
-    // Create checkout session
-    const origin = request.headers.get("origin") || request.headers.get("referer")?.split("/").slice(0, 3).join("/") || "http://localhost:3000"
-    
-    try {
-      const session = await stripe.checkout.sessions.create({
-        ui_mode: "embedded",
-        customer: customerId,
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: product.name,
-                description: product.description,
-              },
-              unit_amount: product.priceInCents,
-              recurring: {
-                interval: "month",
-              },
-            },
-            quantity: 1,
-          },
-        ],
-        mode: "subscription",
-        return_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        metadata: {
-          user_id: user.id,
-          product_tier: product.tier,
-        },
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { supabase_user_id: user.id },
       })
 
-      if (!session.client_secret) {
-        console.error("Stripe session created but client_secret is missing")
-        return NextResponse.json({ error: "Checkout session created but client secret is missing" }, { status: 500 })
-      }
+      customerId = customer.id
 
-      return NextResponse.json({ clientSecret: session.client_secret })
-    } catch (stripeError) {
-      console.error("Stripe API error:", stripeError)
-      throw new Error(`Stripe checkout session creation failed: ${stripeError instanceof Error ? stripeError.message : "Unknown error"}`)
+      await supabase
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", user.id)
     }
-  } catch (error) {
-    console.error("Error creating checkout session:", error)
-    
-    // Provide more specific error messages
-    if (error instanceof Error) {
-      // If it's a Stripe error, include more details
-      if (error.message.includes("Stripe")) {
-        return NextResponse.json({ error: `Stripe error: ${error.message}` }, { status: 500 })
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    
-    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 })
+
+    const origin =
+      request.headers.get("origin") ??
+      process.env.NEXT_PUBLIC_APP_URL!
+
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
+      mode: "subscription",
+      customer: customerId,
+      line_items: [
+        {
+          price: product.priceId,
+          quantity: 1,
+        },
+      ],
+      return_url: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      metadata: {
+        user_id: user.id,
+        tier: product.tier,
+      },
+    })
+
+    return NextResponse.json({
+      clientSecret: session.client_secret,
+    })
+  } catch (error: any) {
+    console.error("Stripe checkout error:", error)
+    return NextResponse.json(
+      { error: error.message || "Checkout failed" },
+      { status: 500 },
+    )
   }
 }

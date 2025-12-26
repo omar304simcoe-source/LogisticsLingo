@@ -1,13 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai" // 1. Added the provider import
+import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Check if user is authenticated
+    // 1️⃣ Check authentication
     const {
       data: { user },
       error: authError,
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get user profile
+    // 2️⃣ Get user profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
@@ -28,38 +28,61 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     }
 
-    // Check rate limits for free tier
+    // 3️⃣ Handle rate limits for free tier
     if (profile.subscription_tier === "free") {
       const now = new Date()
-      const resetTime = new Date(profile.messages_reset_at)
 
+      const resetTime = profile.messages_reset_at
+        ? new Date(profile.messages_reset_at)
+        : new Date(0)
+
+      // Reset daily counter if more than 24h passed
       if (now.getTime() - resetTime.getTime() > 24 * 60 * 60 * 1000) {
         await supabase
           .from("profiles")
-          .update({ messages_today: 0, messages_reset_at: now.toISOString() })
+          .update({
+            messages_today: 0,
+            messages_reset_at: now.toISOString(),
+          })
           .eq("id", user.id)
+
         profile.messages_today = 0
       }
 
       if (profile.messages_today >= 3) {
         return NextResponse.json(
-          { error: "Daily message limit reached. Upgrade to Pro for unlimited messages." },
+          {
+            error:
+              "Daily message limit reached. Upgrade to Pro for unlimited messages.",
+          },
           { status: 429 },
         )
       }
     }
 
+    // 4️⃣ Read request body safely
     const loadDetails = await request.json()
+
+    if (!loadDetails?.messageType) {
+      return NextResponse.json(
+        { error: "Message type is required" },
+        { status: 400 },
+      )
+    }
+
     const prompt = buildPrompt(loadDetails)
 
-    // 2. Updated generateText to use the provider and added a system prompt
+    // 5️⃣ Generate AI message
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"), // Fixes the GatewayAuthenticationError
-      system: "You are a professional logistics communication assistant. You specialize in generating clear, concise freight updates and professional correspondence between drivers, brokers, and shippers.",
+      model: openai("gpt-4o-mini"),
+      system:
+        "You are a professional logistics communication assistant. You generate clear, concise, professional freight and dispatcher messages.",
       prompt,
     })
 
-    // Increment message counter for free tier
+    const generatedMessage = text.trim()
+
+    // 6️⃣ Increment usage for free tier
     if (profile.subscription_tier === "free") {
       await supabase
         .from("profiles")
@@ -67,18 +90,22 @@ export async function POST(request: NextRequest) {
         .eq("id", user.id)
     }
 
-    // Save to message history
+    // 7️⃣ Save message history
     await supabase.from("message_history").insert({
       user_id: user.id,
       message_type: loadDetails.messageType,
-      generated_message: text,
+      generated_message: generatedMessage,
       load_details: loadDetails,
     })
 
-    return NextResponse.json({ message: text })
+    // 8️⃣ Return response
+    return NextResponse.json({ message: generatedMessage })
   } catch (error: any) {
     console.error("Error generating message:", error)
-    return NextResponse.json({ error: error.message || "Failed to generate message" }, { status: 500 })
+    return NextResponse.json(
+      { error: error.message || "Failed to generate message" },
+      { status: 500 },
+    )
   }
 }
 
@@ -104,14 +131,41 @@ function buildPrompt(details: any): string {
     "delivery-confirmation": "Delivery confirmation",
   }
 
-  const messageType = messageTypeMap[details.messageType] || details.messageType
+  const messageType =
+    messageTypeMap[details.messageType] || details.messageType
 
-  // Helper to safely display fields
-  const field = (label: string, value: any) => value ? `${label}: ${value}\n` : "";
+  const field = (label: string, value: any) =>
+    value ? `${label}: ${value}\n` : ""
 
   return `Generate a ${messageType} based on the following load details:
 
-${field("Driver", details.assignedDriver)}${field("Pickup Address", details.pickupAddress)}${field("Pickup Time", `${details.pickupDate} at ${details.pickupTime}`)}${field("Delivery Address", details.deliveryAddress)}${field("Delivery Time", `${details.deliveryDate} at ${details.deliveryTime}`)}${field("Commodity", details.commodity)}${field("Weight", details.weight)}${field("Broker Contact", details.brokerContact)}${field("Reference #", details.referenceNumber)}${field("Load #", details.loadNumber)}${field("PO #", details.poNumber)}${field("BOL #", details.bolNumber)}${field("Notes", details.additionalNotes)}
+${field("Driver", details.assignedDriver)}${field(
+    "Pickup Address",
+    details.pickupAddress,
+  )}${field(
+    "Pickup Time",
+    details.pickupDate && details.pickupTime
+      ? `${details.pickupDate} at ${details.pickupTime}`
+      : null,
+  )}${field("Delivery Address", details.deliveryAddress)}${field(
+    "Delivery Time",
+    details.deliveryDate && details.deliveryTime
+      ? `${details.deliveryDate} at ${details.deliveryTime}`
+      : null,
+  )}${field("Commodity", details.commodity)}${field(
+    "Weight",
+    details.weight,
+  )}${field("Broker Contact", details.brokerContact)}${field(
+    "Reference #",
+    details.referenceNumber,
+  )}${field("Load #", details.loadNumber)}${field(
+    "PO #",
+    details.poNumber,
+  )}${field("BOL #", details.bolNumber)}${field(
+    "Notes",
+    details.additionalNotes,
+  )}
+
 Instructions:
 - Clear and professional freight industry tone.
 - Include all provided identifiers (Load #, BOL, etc.).
