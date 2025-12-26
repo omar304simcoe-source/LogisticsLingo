@@ -7,6 +7,6 @@ if (!process.env.STRIPE_SECRET_KEY) {
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   // Use the exact version string from your Stripe Dashboard
-  apiVersion: "2025-11-17.clover" as any, 
+  apiVersion: "2025-12-15.clover" as any, 
   typescript: true,
 })
