@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. THE BYPASS: If the user is going to login, don't run auth checks!
+  // 1. THE BYPASS: Allow Stripe and Auth routes to pass through immediately
+  // We explicitly include 'api' here as a safety net
   if (
     pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') || 
@@ -40,7 +41,6 @@ export async function proxy(request: NextRequest) {
   )
 
   // 3. PROTECT DASHBOARD ONLY
-  // This ensures only /dashboard routes trigger a redirect to login
   if (pathname.startsWith('/dashboard')) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -51,7 +51,10 @@ export async function proxy(request: NextRequest) {
   return response
 }
 
+// 4. THE MATCHER: This tells Next.js exactly which routes to run this file on.
+// We are excluding 'api' so Stripe's POST request is never touched by this logic.
 export const config = {
-  // Matches everything except static files and api
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 }
