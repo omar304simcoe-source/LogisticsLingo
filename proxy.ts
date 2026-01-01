@@ -4,8 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. THE BYPASS: Allow Stripe and Auth routes to pass through immediately
-  // We explicitly include 'api' here as a safety net
+  // 1. THE BYPASS: Standard static/public routes
   if (
     pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') || 
@@ -16,6 +15,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Initialize response
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -28,10 +28,15 @@ export async function proxy(request: NextRequest) {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
+          // Update request headers for the current server run
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          
+          // CRITICAL: Re-create the response object with new cookies
           response = NextResponse.next({
             request: { headers: request.headers },
           })
+          
+          // Set cookies on the response to send back to the browser
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -40,21 +45,29 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 3. PROTECT DASHBOARD ONLY
+  // 3. PROTECT DASHBOARD
+  // Use getUser() instead of getSession() as it's more secure for server checks
   if (pathname.startsWith('/dashboard')) {
     const { data: { user } } = await supabase.auth.getUser()
+    
     if (!user) {
-      return NextResponse.redirect(new URL('/auth/login', request.url))
+      // Create a redirect response
+      const redirectResponse = NextResponse.redirect(new URL('/auth/login', request.url))
+      
+      // IMPORTANT: Copy existing cookies to the redirect response 
+      // so the logout/session-clear is preserved
+      response.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      
+      return redirectResponse
     }
   }
 
+  // Return the final response (which now correctly carries updated cookies)
   return response
 }
 
-// 4. THE MATCHER: This tells Next.js exactly which routes to run this file on.
-// We are excluding 'api' so Stripe's POST request is never touched by this logic.
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
