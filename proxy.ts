@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 1. THE BYPASS: Standard static/public routes
+  // 1. BYPASS
   if (
     pathname.startsWith('/auth') || 
     pathname.startsWith('/_next') || 
@@ -15,28 +15,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Initialize response
+  // Create an initial response
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
 
   // 2. INITIALIZE SUPABASE
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
-          // Update request headers for the current server run
+          // This is the correct logic for syncing cookies back to the browser
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          
-          // CRITICAL: Re-create the response object with new cookies
           response = NextResponse.next({
             request: { headers: request.headers },
           })
-          
-          // Set cookies on the response to send back to the browser
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -45,29 +41,39 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 3. PROTECT DASHBOARD
-  // Use getUser() instead of getSession() as it's more secure for server checks
+  // 3. THE KEY CHANGE: Always call getUser() for protected routes
   if (pathname.startsWith('/dashboard')) {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
     
-    if (!user) {
-      // Create a redirect response
-      const redirectResponse = NextResponse.redirect(new URL('/auth/login', request.url))
+    // If no user exists, redirect to login
+    if (error || !user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/login'
+      // Pass the current URL as a 'next' param so user returns here after login
+      url.searchParams.set('next', pathname) 
       
-      // IMPORTANT: Copy existing cookies to the redirect response 
-      // so the logout/session-clear is preserved
+      const redirectResponse = NextResponse.redirect(url)
+      
+      // Copy the cookies to the redirect so the session clear persists
       response.cookies.getAll().forEach((cookie) => {
         redirectResponse.cookies.set(cookie.name, cookie.value)
       })
-      
       return redirectResponse
     }
   }
 
-  // Return the final response (which now correctly carries updated cookies)
   return response
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    /*
+     * Match all request paths except for:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - api (API routes - IMPORTANT for Stripe)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 }
