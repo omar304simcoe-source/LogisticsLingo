@@ -9,6 +9,7 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 interface CheckoutDialogProps {
   productId: string
+  userId: string;
   onClose: () => void
 }
 
@@ -17,7 +18,7 @@ export function CheckoutDialog({ productId, onClose }: CheckoutDialogProps) {
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId }),
+      body: JSON.stringify({ productId, userId }),
     })
     
     if (!response.ok) {
