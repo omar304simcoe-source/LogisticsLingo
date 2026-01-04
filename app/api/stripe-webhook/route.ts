@@ -1,107 +1,89 @@
-import { NextRequest, NextResponse } from "next/server"
-import Stripe from "stripe"
+import { type NextRequest, NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
-import { createClient } from "@supabase/supabase-js" 
+import { createClient } from "@/lib/supabase/server"
+import type Stripe from "stripe"
 
-// Initialize Admin client to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "whsec_nsI96aIGxSEMgcKL4IankSfTMoudoqrM"
 
-export async function POST(req: NextRequest) {
-  const body = await req.text()
-  const sig = req.headers.get("stripe-signature")
-
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return NextResponse.json({ error: "Configuration Error" }, { status: 400 })
-  }
+export async function POST(request: NextRequest) {
+  const body = await request.text()
+  const signature = request.headers.get("stripe-signature")!
 
   let event: Stripe.Event
 
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET)
-  } catch (err: any) {
-    console.error("Signature verification failed:", err.message)
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
+  const supabase = await createClient()
+
   try {
     switch (event.type) {
-      // 1. Handled when a user first subscribes via Checkout
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
         const userId = session.metadata?.user_id
-        const tier = session.metadata?.product_tier
-        const subscriptionId = session.subscription as string
-        const customerId = session.customer as string
+        const productTier = session.metadata?.product_tier
 
-        if (!userId || !tier) {
-          console.error("Missing metadata in checkout.session.completed:", { userId, tier })
-          break
+        if (userId && productTier) {
+          await supabase
+            .from("profiles")
+            .update({
+              subscription_tier: productTier,
+              subscription_status: "active",
+              stripe_subscription_id: session.subscription as string,
+            })
+            .eq("id", userId)
         }
-
-        const { error } = await supabaseAdmin
-          .from("profiles")
-          .update({
-            subscription_tier: tier,
-            subscription_status: "active",
-            stripe_subscription_id: subscriptionId,
-            stripe_customer_id: customerId,
-          })
-          .eq("id", userId)
-
-        if (error) throw error
-        console.log(`✅ Profile updated for user ${userId}: Tier ${tier}`)
         break
       }
 
-      // 2. Handled when a subscription changes (upgrades/downgrades or payment failures)
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
-        
-        // Map Stripe status to your internal status
-        const status = subscription.status === "active" ? "active" : "past_due"
-        
-        const { error } = await supabaseAdmin
+
+        const { data: profile } = await supabase
           .from("profiles")
-          .update({ 
-            subscription_status: status 
-          })
+          .select("id")
           .eq("stripe_customer_id", customerId)
-        
-        if (error) throw error
-        console.log(`🔄 Subscription updated for customer ${customerId}: Status ${status}`)
+          .single()
+
+        if (profile) {
+          const status = subscription.status === "active" ? "active" : "inactive"
+          await supabase.from("profiles").update({ subscription_status: status }).eq("id", profile.id)
+        }
         break
       }
 
-      // 3. Handled when a subscription is canceled or ends
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
 
-        const { error } = await supabaseAdmin
+        const { data: profile } = await supabase
           .from("profiles")
-          .update({
-            subscription_tier: "free",
-            subscription_status: "canceled",
-            stripe_subscription_id: null,
-          })
+          .select("id")
           .eq("stripe_customer_id", customerId)
-        
-        if (error) throw error
-        console.log(`❌ Subscription deleted for customer ${customerId}. Reverted to Free tier.`)
+          .single()
+
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({
+              subscription_tier: "free",
+              subscription_status: "inactive",
+              stripe_subscription_id: null,
+            })
+            .eq("id", profile.id)
+        }
         break
       }
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`)
     }
 
     return NextResponse.json({ received: true })
-  } catch (err: any) {
-    console.error("Webhook Handler Error:", err.message)
-    return NextResponse.json({ error: "Handler failed" }, { status: 500 })
+  } catch (error) {
+    console.error("Error processing webhook:", error)
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
   }
 }
