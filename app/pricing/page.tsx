@@ -3,27 +3,31 @@ import { createClient } from "@/lib/supabase/server"
 import { PricingContent } from "@/components/pricing-content"
 
 export default async function PricingPage() {
+  // 1. Initialize Supabase (Must be awaited in Next.js 15)
   const supabase = await createClient()
 
-  // Get authenticated user
+  // 2. Get authenticated user
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser()
 
+  // If no session, send them to login
   if (authError || !user) {
     redirect("/auth/login")
   }
 
-  // Fetch user profile
+  // 3. Fetch user profile
+  // We use maybeSingle() because it handles "0 rows found" gracefully (returning null)
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .maybeSingle()
 
-  // Auto-create profile if missing (first login)
-  if (!profile && profileError?.code === "PGRST116") {
+  // 4. Handle Case: Profile does not exist yet
+  // This happens the first time a user visits the pricing page after signing up.
+  if (!profile && !profileError) {
     const { data: newProfile, error: insertError } = await supabase
       .from("profiles")
       .insert({
@@ -35,20 +39,20 @@ export default async function PricingPage() {
       .select()
       .single()
 
-    if (insertError || !newProfile) {
-      throw new Error("Failed to create user profile")
+    if (insertError) {
+      console.error("Critical: Failed to auto-create profile", insertError)
+      throw new Error("Failed to initialize user profile")
     }
 
     return <PricingContent profile={newProfile} />
   }
 
+  // 5. Handle Case: Database Error
   if (profileError) {
-    throw new Error(profileError.message)
+    console.error("Database error fetching profile:", profileError)
+    throw new Error("Profile fetching failed")
   }
 
-  if (!profile) {
-    throw new Error("Profile not found")
-  }
-
+  // 6. Success: Pass existing profile to the client-side component
   return <PricingContent profile={profile} />
 }
