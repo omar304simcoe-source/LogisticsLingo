@@ -11,22 +11,31 @@ export interface Product {
 export const PRODUCTS: Product[] = [
   {
     id: "pro-plan",
-    // ⚠️ Get this from the "Pricing" section of the product, NOT the top header
-    stripePriceId: "price_1ShKkoGjRgaLSEnZPHydeESf", 
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID!,
     name: "Pro",
     description: "Perfect for individual brokers and carriers",
-    priceInCents: 499, // Matching your image's $4.99
+    priceInCents: 499,
     tier: "pro",
-    features: ["Unlimited messages", "Save templates", "Multi-driver profiles", "Priority support"],
+    features: [
+      "High message limits",
+      "Save templates",
+      "Multi-driver profiles",
+      "Priority support",
+    ],
   },
   {
     id: "agency-plan",
-    // ⚠️ Get this from the "Pricing" section of the product, NOT the top header
-    stripePriceId: "price_1ShKlWGjRgaLSEnZJQjHFjF3", 
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID!,
     name: "Agency",
     description: "For small dispatch companies",
     priceInCents: 799,
     tier: "agency",
-    features: ["Everything in Pro", "Multiple users", "Export templates", "Custom branding", "Team management"],
+    features: [
+      "Everything in Pro",
+      "Multiple users",
+      "Export templates",
+      "Custom branding",
+      "Team management",
+    ],
   },
 ]
