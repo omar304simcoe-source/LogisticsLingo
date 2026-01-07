@@ -13,7 +13,7 @@ interface CheckoutDialogProps {
   onClose: () => void
 }
 
-export function CheckoutDialog({ productId, onClose }: CheckoutDialogProps) {
+export function CheckoutDialog({ productId, userId, onClose }: CheckoutDialogProps) {
   const startCheckoutSession = useCallback(async () => {
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
