@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
+
+      // ✅ FIRST PAYMENT
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
 
@@ -37,24 +39,49 @@ export async function POST(req: NextRequest) {
 
         if (!userId || !tier || !customerId) break
 
-        await supabase.from("profiles").update({
-          subscription_tier: tier,
-          subscription_status: "active",
-          stripe_customer_id: customerId,
-          stripe_subscription_id: session.subscription as string,
-        }).eq("id", userId)
+        await supabase
+          .from("profiles")
+          .update({
+            subscription_tier: tier,
+            subscription_status: "active",
+            stripe_customer_id: customerId,
+            stripe_subscription_id: session.subscription as string,
+          })
+          .eq("id", userId)
 
         break
       }
 
+      // ✅ PLAN CHANGES / PAYMENT FAILURES / RESUMES
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription
+        const customerId = subscription.customer as string
+
+        const status =
+          subscription.status === "active" ? "active" : "inactive"
+
+        await supabase
+          .from("profiles")
+          .update({
+            subscription_status: status,
+          })
+          .eq("stripe_customer_id", customerId)
+
+        break
+      }
+
+      // ✅ CANCELLATION
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription
 
-        await supabase.from("profiles").update({
-          subscription_tier: "free",
-          subscription_status: "inactive",
-          stripe_subscription_id: null,
-        }).eq("stripe_customer_id", subscription.customer as string)
+        await supabase
+          .from("profiles")
+          .update({
+            subscription_tier: "free",
+            subscription_status: "inactive",
+            stripe_subscription_id: null,
+          })
+          .eq("stripe_customer_id", subscription.customer as string)
 
         break
       }
