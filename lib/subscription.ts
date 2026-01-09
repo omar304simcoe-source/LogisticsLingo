@@ -1,6 +1,6 @@
 export const SUBSCRIPTION_LIMITS = {
     free: {
-      messages: 10,
+      messages: 3,
     },
     pro: {
       messages: 100,
