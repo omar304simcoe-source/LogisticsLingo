@@ -39,7 +39,9 @@ export function NavUser({ user }: { user: any }) {
         </div>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent className="w-56" align="end">
+      <DropdownMenuContent
+  className="w-56 bg-white border border-slate-200 shadow-lg rounded-lg"
+  align="end">
         <DropdownMenuLabel className="font-normal">
           <p className="text-sm font-medium text-slate-900">Account</p>
           <p className="text-xs text-slate-500">{user?.email}</p>
