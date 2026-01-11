@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { NavUser } from "@/components/nav-user"
 import { Truck } from "lucide-react"
 import Link from "next/link"
+import MessageCounter from "@/components/ui/MessageCounter"
 
 export default async function DashboardLayout({
   children,
@@ -11,16 +12,22 @@ export default async function DashboardLayout({
 }) {
   const supabase = await createClient()
 
-  // Fetch user to show email in the "Account" section
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     redirect("/auth/login")
   }
 
+  // Get initial count from the server side
+  const { count: initialCount } = await supabase
+    .from('message_history')
+    .select('*', { count: 'exact', head: true })
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50/50">
-      {/* This is your new Dashboard Header */}
+      {/* Global Count Banner */}
+      <MessageCounter initialCount={initialCount || 0} />
+
       <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b bg-white px-6">
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -29,7 +36,6 @@ export default async function DashboardLayout({
           </Link>
         </div>
 
-        {/* This displays the Account/User dropdown */}
         <div className="flex items-center gap-4">
           <NavUser user={user} />
         </div>
