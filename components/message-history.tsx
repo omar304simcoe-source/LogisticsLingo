@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { Button } from "./ui/button"
-import { Copy, Share2 } from "lucide-react" // Added Share icon
+import { Copy } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface HistoryItem {
@@ -18,11 +18,8 @@ interface UsageData {
   messages_today: number
 }
 
-interface MessageHistoryProps {
-  globalTotal: number;
-}
-
-export function MessageHistory({ globalTotal }: MessageHistoryProps) {
+// Removed the globalTotal prop requirement
+export function MessageHistory() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -93,61 +90,27 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const handleShare = () => {
-    const text = encodeURIComponent(`I'm using LogisticsLingo to streamline my shipping communications! ${globalTotal.toLocaleString()} messages have already been generated. Check it out:`);
-    const url = encodeURIComponent("https://logistics-lingo.vercel.app");
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-  }
-
   return (
     <div>
-      {/* Updated Usage and Global Counter Header */}
+      {/* Reverted Usage counter (no global stats) */}
       {usage && (
-        <Card className="mb-6 border-black bg-white">
+        <Card className="mb-6 border-black bg-white shadow-sm">
           <CardContent className="py-4">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-              <div>
-                <p className="text-sm">
-                  Plan: <span className="font-bold uppercase">{usage.subscription_tier}</span>
-                </p>
-                {usage.subscription_tier === "free" ? (
-                  <p className="text-xs text-gray-600">
-                    Daily Usage: {usage.messages_today} / 3
-                  </p>
-                ) : (
-                  <p className="text-xs text-green-600 font-medium">Unlimited Access 🚀</p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Global Stats Badge */}
-                <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
-                  <span className="text-xs font-bold text-slate-700">
-                    {globalTotal.toLocaleString()} total messages generated on LogisticsLingo
-                  </span>
-                </div>
-
-                {/* Share Button */}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleShare}
-                  className="rounded-full border-black hover:bg-slate-50 h-8"
-                >
-                  <Share2 className="h-3 w-3 mr-1" />
-                  <span className="text-[10px] font-bold">Share</span>
-                </Button>
-              </div>
-            </div>
+            <p className="text-sm">
+              Plan: <span className="font-bold uppercase tracking-wider">{usage.subscription_tier}</span>
+            </p>
+            {usage.subscription_tier === "free" ? (
+              <p className="text-xs text-gray-600">
+                Messages used today: {usage.messages_today} / 3
+              </p>
+            ) : (
+              <p className="text-xs text-green-600 font-medium text-[10px] uppercase">Unlimited messages 🚀</p>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* History */}
+      {/* History List */}
       {isLoading ? (
         <Card className="border-black">
           <CardContent className="py-12 text-center">
@@ -157,7 +120,7 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
       ) : history.length === 0 ? (
         <Card className="border-black">
           <CardContent className="py-12 text-center">
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm">
               No message history yet. Start generating messages to see them here!
             </p>
           </CardContent>
@@ -169,8 +132,8 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
               <Card key={item.id} className="border-black">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{item.message_type}</CardTitle>
-                    <span className="text-xs text-gray-600">
+                    <CardTitle className="text-base font-semibold">{item.message_type}</CardTitle>
+                    <span className="text-xs text-gray-500 uppercase">
                       {new Date(item.created_at).toLocaleDateString()}
                     </span>
                   </div>
@@ -188,7 +151,7 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
                       "Copied!"
                     ) : (
                       <>
-                        <Copy className="h-4 w-4 mr-2" /> Copy
+                        <Copy className="h-4 w-4 mr-2" /> Copy Message
                       </>
                     )}
                   </Button>
@@ -197,7 +160,7 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
             ))}
           </div>
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           <div className="flex justify-center items-center space-x-4 mt-6">
             <Button
               onClick={() => setPage((p) => Math.max(p - 1, 1))}
@@ -208,7 +171,7 @@ export function MessageHistory({ globalTotal }: MessageHistoryProps) {
             >
               Prev
             </Button>
-            <span className="text-sm font-medium">
+            <span className="text-xs font-bold uppercase">
               Page {page} of {totalPages}
             </span>
             <Button

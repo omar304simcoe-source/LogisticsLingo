@@ -12,13 +12,10 @@ import { MessageHistory } from "./message-history"
 interface DashboardContentProps {
   user: any
   profile: any
-  stats: {
-    personalTotal: number
-    globalTotal: number
-  }
+  // stats removed from here
 }
 
-export function DashboardContent({ user, profile, stats }: DashboardContentProps) {
+export function DashboardContent({ user, profile }: DashboardContentProps) {
   const [generatedMessage, setGeneratedMessage] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -91,7 +88,7 @@ export function DashboardContent({ user, profile, stats }: DashboardContentProps
   return (
     <div className="bg-transparent space-y-6">
 
-      {/* Plan Status - Message Count Bar Removed */}
+      {/* Plan Status */}
       <div className="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
         <div className="text-sm">
           <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
@@ -177,46 +174,3 @@ export function DashboardContent({ user, profile, stats }: DashboardContentProps
                   </div>
                 )}
               </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <SavedTemplates canSave={canSaveTemplates} />
-        </TabsContent>
-
-        <TabsContent value="history">
-          {/* Passing globalTotal only to the history component */}
-          <MessageHistory globalTotal={stats.globalTotal} />
-        </TabsContent>
-      </Tabs>
-
-      {/* Save Template Modal */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader>
-              <CardTitle>Save as Template</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <input
-                className="w-full border rounded px-3 py-2"
-                placeholder="Template name"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-              />
-              <div className="flex gap-3">
-                <Button onClick={handleSaveTemplate} disabled={isSaving} className="flex-1">
-                  {isSaving ? "Saving..." : "Save"}
-                </Button>
-                <Button variant="outline" onClick={() => setShowSaveDialog(false)} className="flex-1">
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  )
-}
