@@ -91,7 +91,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
         <div className="text-sm">
           <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Current Plan:</span>{" "}
           <span className="ml-2 font-medium">
-            {profile?.subscription_tier === "free" && "Free (3 messages remaining)"}
+            {profile?.subscription_tier === "free" && "Free 3 messages"}
             {profile?.subscription_tier === "pro" && "Pro Plan"}
             {profile?.subscription_tier === "agency" && "Agency Plan"}
           </span>
