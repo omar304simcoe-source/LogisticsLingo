@@ -3,30 +3,29 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-export default function MessageCounter({ initialCount }) {
-  const [count, setCount] = useState(initialCount);
-  // This creates a supabase client for the browser
+interface MessageCounterProps {
+  initialCount: number;
+}
+
+export default function MessageCounter({ initialCount }: MessageCounterProps) {
+  const [count, setCount] = useState<number>(initialCount);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    const fetchCount = async () => {
-      const { count: totalCount, error } = await supabase
-        .from('message_history') 
-        .select('*', { count: 'exact', head: true });
-
-      if (!error) {
-        setCount(totalCount);
-      }
-    };
-
-    // This listens for any new inserts into the message_history table 
-    // and updates the count for all active users immediately.
+    // Real-time listener
     const channel = supabase
       .channel('realtime_count')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'message_history' },
-        () => fetchCount()
+        async () => {
+          // Re-fetch the exact count when a change happens
+          const { count: newCount } = await supabase
+            .from('message_history')
+            .select('*', { count: 'exact', head: true });
+          
+          if (newCount !== null) setCount(newCount);
+        }
       )
       .subscribe();
 
@@ -42,8 +41,8 @@ export default function MessageCounter({ initialCount }) {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
         </span>
-        <span className="opacity-90">
-          OVER <span className="text-blue-400 font-bold">{count?.toLocaleString() || '0'}</span> LOGISTICS MESSAGES GENERATED
+        <span className="opacity-90 uppercase">
+          OVER <span className="text-blue-400 font-bold">{count.toLocaleString()}</span> LOGISTICS MESSAGES GENERATED
         </span>
       </div>
     </div>
