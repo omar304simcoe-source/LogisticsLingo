@@ -12,7 +12,6 @@ import { MessageHistory } from "./message-history"
 interface DashboardContentProps {
   user: any
   profile: any
-  // stats removed from here
 }
 
 export function DashboardContent({ user, profile }: DashboardContentProps) {
@@ -87,7 +86,6 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
 
   return (
     <div className="bg-transparent space-y-6">
-
       {/* Plan Status */}
       <div className="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
         <div className="text-sm">
@@ -123,10 +121,7 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                 <CardTitle>Load Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <LoadDetailsForm
-                  onSubmit={handleGenerateMessage}
-                  isLoading={isGenerating}
-                />
+                <LoadDetailsForm onSubmit={handleGenerateMessage} isLoading={isGenerating} />
               </CardContent>
             </Card>
 
@@ -140,30 +135,17 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                     <div className="bg-slate-50 p-4 rounded-md border min-h-[400px] overflow-auto whitespace-pre-wrap font-mono text-sm">
                       {generatedMessage}
                     </div>
-
                     <div className="flex gap-3">
                       <Button onClick={handleCopy} className="flex-1">
                         {copied ? (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Copied
-                          </>
+                          <><CheckCircle2 className="h-4 w-4 mr-2" />Copied</>
                         ) : (
-                          <>
-                            <Copy className="h-4 w-4 mr-2" />
-                            Copy
-                          </>
+                          <><Copy className="h-4 w-4 mr-2" />Copy</>
                         )}
                       </Button>
-
                       {canSaveTemplates && (
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowSaveDialog(true)}
-                        >
-                          <Save className="h-4 w-4 mr-2" />
-                          Save Template
+                        <Button variant="outline" className="flex-1" onClick={() => setShowSaveDialog(true)}>
+                          <Save className="h-4 w-4 mr-2" /> Save Template
                         </Button>
                       )}
                     </div>
@@ -174,3 +156,45 @@ export function DashboardContent({ user, profile }: DashboardContentProps) {
                   </div>
                 )}
               </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <SavedTemplates canSave={canSaveTemplates} />
+        </TabsContent>
+
+        <TabsContent value="history">
+          <MessageHistory />
+        </TabsContent>
+      </Tabs>
+
+      {/* Save Template Modal */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>Save as Template</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <input
+                className="w-full border rounded px-3 py-2"
+                placeholder="Template name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <Button onClick={handleSaveTemplate} disabled={isSaving} className="flex-1">
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button variant="outline" onClick={() => setShowSaveDialog(false)} className="flex-1">
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
