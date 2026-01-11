@@ -91,28 +91,7 @@ export function DashboardContent({ user, profile, stats }: DashboardContentProps
   return (
     <div className="bg-transparent space-y-6">
 
-      {/* 🔢 Usage / Stats Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-4 rounded-lg border shadow-sm">
-        <div className="text-sm text-slate-600">
-          <span className="font-medium text-slate-900">
-            You’ve created {stats.personalTotal.toLocaleString()}
-          </span>{" "}
-          messages ·{" "}
-          <span className="font-medium text-slate-900">
-            {stats.globalTotal.toLocaleString()}
-          </span>{" "}
-          total messages generated on LogisticsLingo
-        </div>
-
-        <div className="text-xs uppercase tracking-wider text-slate-500">
-          Plan:{" "}
-          <span className="font-semibold text-slate-800">
-            {profile?.subscription_tier ?? "free"}
-          </span>
-        </div>
-      </div>
-
-      {/* Plan Status */}
+      {/* Plan Status - Message Count Bar Removed */}
       <div className="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
         <div className="text-sm">
           <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
@@ -207,7 +186,8 @@ export function DashboardContent({ user, profile, stats }: DashboardContentProps
         </TabsContent>
 
         <TabsContent value="history">
-          <MessageHistory />
+          {/* Passing globalTotal only to the history component */}
+          <MessageHistory globalTotal={stats.globalTotal} />
         </TabsContent>
       </Tabs>
 
